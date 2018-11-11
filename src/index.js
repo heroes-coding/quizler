@@ -32,19 +32,71 @@ const askForQuestions = [
   }
 ]
 
+const changeNamesToIds = (quiz, title) =>
+  quiz.map((q, id) => ({...q, name: `${title}#${id + 1}`}))
+
+const getAnswers = quiz =>
+  new Promise((resolve, reject) =>
+    prompt(quiz.map(q => ({...q, message: `Please choose the answer for [${q.message}]`})))
+      .then(answers => resolve({quiz, answers}))
+      .catch(reject)
+  )
+
+const gradeQuiz = (quizTitles, answers) =>
+  new Promise((resolve, reject) =>
+    new Promise((resolve, reject) =>
+      Promise.all(quizTitles.map(title => readFile(`${title}Answers`))).then(answerKeys => {
+        resolve(answerKeys.reduce((acc, a) => ({...acc, ...a}), {}))
+      })
+    ).then(answerKey => {
+      const results = {
+        correct: Object.entries(answers).reduce((acc, [question, answer]) =>
+            acc + (answerKey[question] === answer ? 1 : 0), 0),
+        total: Object.keys(answers).length
+      }
+      console.log(`You got ${results.correct}/${results.total} correct on [${quizTitles.join(' / ')}]`)
+      resolve(results)
+    }).catch(reject)
+  )
+
 const createQuiz = title =>
   prompt(askForQuestions)
-    .then(answer =>
-      // TODO finish createQuiz logic
-      console.log(answer)
-    )
+    .then(createPrompt)
+    .then(prompt)
+    .then(createQuestions)
+    .then(questions => changeNamesToIds(questions, title))
+    .then(getAnswers)
+    .then(({quiz, answers}) => {
+      writeFile(title, quiz)
+      writeFile(`${title}Answers`, answers)
+    })
     .catch(err => console.log('Error creating the quiz.', err))
 
-// const takeQuiz = (title, output) =>
-// TODO implement takeQuiz
+const takeQuiz = (title, output) =>
+    readFile(title)
+      .then(quiz => prompt(quiz))
+      .then(answers => writeFile(output, answers))
+      .then(answers => gradeQuiz([title], answers))
+      .catch(err => console.log('Error taking the quiz.', err))
 
-// const takeRandomQuiz = (quizes, output, n) =>
-// TODO implement takeRandomQuiz
+const takeRandomQuiz = (quizes, output) =>
+  new Promise((resolve, reject) => {
+    Promise.all(quizes.map(readFile)).then(quizes => {
+      resolve(quizes.map(q => chooseRandom(q)).reduce((acc, a) => [...acc, ...a], []))
+    })
+  }).then(prompt)
+    .then(answers => writeFile(output, answers))
+    .then(answers => gradeQuiz(quizes, answers))
+    .catch(console.log)
+
+cli
+    .command(
+      'grade <answersFileName> <quizNames...>',
+      'Grades a quiz from the given input and names of quizes (possibly more than one in the case of random) used to create the input'
+    )
+    .action(function ({ answersFileName, quizNames }, callback) {
+      return readFile(answersFileName).then(answers => gradeQuiz(quizNames, answers))
+    })
 
 cli
   .command(
@@ -52,7 +104,6 @@ cli
     'Creates a new quiz and saves it to the given fileName'
   )
   .action(function (input, callback) {
-    // TODO update create command for correct functionality
     return createQuiz(input.fileName)
   })
 
@@ -61,8 +112,8 @@ cli
     'take <fileName> <outputFile>',
     'Loads a quiz and saves the users answers to the given outputFile'
   )
-  .action(function (input, callback) {
-    // TODO implement functionality for taking a quiz
+  .action(function ({ fileName, outputFile }, callback) {
+    return takeQuiz(fileName, outputFile)
   })
 
 cli
@@ -72,8 +123,8 @@ cli
       ' multiple quizes and selects a random number of questions from each quiz.' +
       ' Then, saves the users answers to the given outputFile'
   )
-  .action(function (input, callback) {
-    // TODO implement the functionality for taking a random quiz
+  .action(function ({ outputFile, fileNames }, callback) {
+    return takeRandomQuiz(fileNames, outputFile)
   })
 
 cli.delimiter(cli.chalk['yellow']('quizler>')).show()
