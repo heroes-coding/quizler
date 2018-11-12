@@ -6,7 +6,8 @@ import {
   writeFile,
   chooseRandom,
   createPrompt,
-  createQuestions
+  createQuestions,
+  changeNamesToIds
 } from './lib'
 
 const cli = vorpal()
@@ -32,9 +33,6 @@ const askForQuestions = [
   }
 ]
 
-const changeNamesToIds = (quiz, title) =>
-  quiz.map((q, id) => ({...q, name: `${title}#${id + 1}`}))
-
 const getAnswers = quiz =>
   new Promise((resolve, reject) =>
     prompt(quiz.map(q => ({...q, message: `Please choose the answer for [${q.message}]`})))
@@ -43,6 +41,11 @@ const getAnswers = quiz =>
   )
 
 const gradeQuiz = (quizTitles, answers) =>
+  /*
+    answers is a single set of answers from either one or multiple quizzes
+    quizTitles is an array of all quizes used to get these answers
+    it is used to construct the answerKey that answers is checked against
+  */
   new Promise((resolve, reject) =>
     new Promise((resolve, reject) =>
       Promise.all(quizTitles.map(title => readFile(`${title}Answers`))).then(answerKeys => {

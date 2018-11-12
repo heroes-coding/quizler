@@ -86,4 +86,7 @@ const createQuestions = input => {
   return Object.entries(results).map(([k, v], i) => v)
 }
 
-export { chooseRandom, createPrompt, createQuestions, readFile, writeFile }
+const changeNamesToIds = (quiz, title) =>
+  quiz.map((q, id) => ({...q, name: `${title}#${id + 1}`}))
+
+export { chooseRandom, createPrompt, createQuestions, readFile, writeFile, changeNamesToIds }
