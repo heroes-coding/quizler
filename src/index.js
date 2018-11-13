@@ -1,5 +1,7 @@
 import vorpal from 'vorpal'
 import { prompt } from 'inquirer'
+import fs from 'fs'
+import path from 'path'
 
 import {
   readFile,
@@ -11,6 +13,17 @@ import {
 } from './lib'
 
 const cli = vorpal()
+const QUIZ_FOLDER = 'quizes'
+const ANSWERS_FOLDER = 'answers'
+const ANSWER_KEY_FOLDER = 'answerKeys'
+
+for (const folder of [QUIZ_FOLDER, ANSWERS_FOLDER, ANSWER_KEY_FOLDER]) {
+  if (!fs.existsSync(folder)) {
+    fs.mkdirSync(folder)
+  }
+}
+
+const getQuizes = () => fs.readdirSync(QUIZ_FOLDER)
 
 const askForQuestions = [
   {
@@ -48,7 +61,7 @@ const gradeQuiz = (quizTitles, answers) =>
   */
   new Promise((resolve, reject) =>
     new Promise((resolve, reject) =>
-      Promise.all(quizTitles.map(title => readFile(`${title}Answers`))).then(answerKeys => {
+      Promise.all(quizTitles.map(title => readFile(path.join(ANSWER_KEY_FOLDER,title)))).then(answerKeys => {
         resolve(answerKeys.reduce((acc, a) => ({...acc, ...a}), {}))
       })
     ).then(answerKey => {
@@ -70,25 +83,25 @@ const createQuiz = title =>
     .then(questions => changeNamesToIds(questions, title))
     .then(getAnswers)
     .then(({quiz, answers}) => {
-      writeFile(title, quiz)
-      writeFile(`${title}Answers`, answers)
+      writeFile(path.join(QUIZ_FOLDER,title), quiz)
+      writeFile(path.join(ANSWER_KEY_FOLDER,title), answers)
     })
     .catch(err => console.log('Error creating the quiz.', err))
 
 const takeQuiz = (title, output) =>
-    readFile(title)
+    readFile(path.join(QUIZ_FOLDER,title))
       .then(quiz => prompt(quiz))
-      .then(answers => writeFile(output, answers))
+      .then(answers => writeFile(path.join(ANSWERS_FOLDER,output), answers))
       .then(answers => gradeQuiz([title], answers))
       .catch(err => console.log('Error taking the quiz.', err))
 
 const takeRandomQuiz = (quizes, output) =>
   new Promise((resolve, reject) => {
-    Promise.all(quizes.map(readFile)).then(quizes => {
+    Promise.all(quizes.map(f => readFile(path.join(QUIZ_FOLDER,f)))).then(quizes => {
       resolve(quizes.map(q => chooseRandom(q)).reduce((acc, a) => [...acc, ...a], []))
     })
   }).then(prompt)
-    .then(answers => writeFile(output, answers))
+    .then(answers => writeFile(path.join(ANSWERS_FOLDER,output), answers))
     .then(answers => gradeQuiz(quizes, answers))
     .catch(console.log)
 
@@ -98,7 +111,7 @@ cli
       'Grades a quiz from the given input and names of quizes (possibly more than one in the case of random) used to create the input'
     )
     .action(function ({ answersFileName, quizNames }, callback) {
-      return readFile(answersFileName).then(answers => gradeQuiz(quizNames, answers))
+      return readFile(path.join(ANSWERS_FOLDER,answersFileName)).then(answers => gradeQuiz(quizNames, answers))
     })
 
 cli
@@ -115,6 +128,7 @@ cli
     'take <fileName> <outputFile>',
     'Loads a quiz and saves the users answers to the given outputFile'
   )
+  .autocomplete({ data: () => getQuizes() })
   .action(function ({ fileName, outputFile }, callback) {
     return takeQuiz(fileName, outputFile)
   })
@@ -126,6 +140,7 @@ cli
       ' multiple quizes and selects a random number of questions from each quiz.' +
       ' Then, saves the users answers to the given outputFile'
   )
+  .autocomplete({ data: () => getQuizes() })
   .action(function ({ outputFile, fileNames }, callback) {
     return takeRandomQuiz(fileNames, outputFile)
   })

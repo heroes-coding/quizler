@@ -1,0 +1,1 @@
+[{"type":"list","name":"quiz#1","message":"FOO?","choices":["Foo","Bar"]},{"type":"list","name":"quiz#2","message":"Bar?","choices":["Foo","Bar"]}]
